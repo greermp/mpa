@@ -16,7 +16,8 @@ altitudes_ft = np.linspace(5000, 25000, 5)
 
 
 
-def create_doe(speeds, altitudes_ft):
-    doe = pd.DataFrame(list(product(speeds, altitudes_ft, sensors)), columns = ['speed_mach', 'alt_ft', 'sensor'])
+def create_doe(machs, altitudes_ft):
+    doe = pd.DataFrame(list(product(machs, altitudes_ft, sensors)), 
+                       columns = ['speed_mach', 'alt_ft', 'sensor'])
     doe['sensor_name'] = doe['sensor'].apply(lambda s: s.name)
     return doe
