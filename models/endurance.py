@@ -1,4 +1,4 @@
-def endurance_model(mach, alt_ft):
+def endurance_model(mach, alt_kft):
     """
     Compute aircraft endurance in hours given Mach number and altitude.
 
@@ -14,5 +14,4 @@ def endurance_model(mach, alt_ft):
     float
         Endurance in hours.
     """
-    alt_kft = alt_ft/1000
     return -18.75 * mach**2 + 8.0893 * mach + 0.01 * alt_kft**2 + 0.05 * alt_kft + 9.2105

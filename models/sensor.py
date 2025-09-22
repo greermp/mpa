@@ -12,6 +12,14 @@ class EO_Sensor:
         self.fov_deg_l = fov_deg_l
         self.range_max = range_max
         
+    @classmethod
+    def from_fov(cls, fov_deg_w, fov_deg_l, cost):
+        """
+        Lightweight constructor for testing.
+        Defaults cost/weight/power to zero.
+        """
+        return cls(name="", cost=cost, fov_deg_w=fov_deg_w, fov_deg_l=fov_deg_l, range_max=0)
+        
 sensors = [
     EO_Sensor("EO/IR Sensor 1", 50000/1e6, 15, 15, math.inf),
     EO_Sensor("EO/IR Sensor 2", 1e6/1e6,   30, 30, math.inf),
