@@ -58,40 +58,113 @@ def hours_to_fly_xkm(speed_mps, xkm):
     time_sec = distance_m / speed_mps  
     # convert to hours
     return time_sec / 3600  
+
+def percent_patrol_complete(gridsize_km2, area_sanitized):
+    return area_sanitized/gridsize_km2*100
+
+def distance_to_base(aircraft_x, aircraft_y, ingress_dist):
+    """
+    Compute distance to base (-ingres_dist, 0) to aircraft position
+              AOI
+             _ _ _
+    (0,0)    _ _ _
+    origin-> _ _ _ <--end first patrol leg (3,0)
+            
+            
+            
+            * Base (0, -ingress_dist)
+
+    Parameters
+    ----------
+    aircraft_x (float): x-position within AOI (km)
+    aircraft_y (float): y-position within AOI (km)
+    ingress_dist (float): ingress distance from base to AOI entry (km)
+
+    Returns
+    -------
+    float
+        distance from base (km)
+    """
     
-def calc_area_sanitized(speed_mps, endurance, footprint, ingress_dist_km, fuel_reserve_hrs, aoi_width=100, aoi_length=100):
+    
+def calc_area_sanitized(
+    speed_mps,
+    endurance,
+    footprint,
+    ingress_dist_km,
+    fuel_reserve_hrs=0,
+    aoi_width=100,
+    aoi_length=100) -> float:
+    """
+    Simulate an MPA patrol over an AOI and compute the sanitized area before returning to base.
+
+    The aircraft starts at the southern edge of the AOI (0,0) after ingress and flies
+    strips northward, deducting endurance for each strip and the return trip to base.
+
+    Base coordinates are at (0, -ingress_dist_km), directly south of AOI origin.
+
+    AOI dimensions:
+        Width  = aoi_width  (km, east-west)
+        Length = aoi_length (km, north-south)
+
+    Sensor footprint is assumed square; swath width = sqrt(footprint).
+
+    Coordinates schematic (for ingress_dist_km = 100 km, aoi_width = 100 km):
+
+          y (north)
+          ↑
+          |
+          |       * Aircraft position (aircraft_x, aircraft_y)
+          |       * After first strip, aircraft_y ≈ 0
+          |
+          * AOI origin (0,0) - southern edge of AOI
+          |
+          |
+          * Base at (0, -ingress_dist_km)
+          |
+          +----------------------------→ x (east)
+
+    Args:
+        speed_mps (float): True airspeed of the aircraft in meters/second.
+        endurance (float): Total available flight time (hours) including reserves.
+        footprint (float): Sensor footprint area in km².
+        ingress_dist_km (float): Distance from base to AOI southern edge (km).
+        fuel_reserve_hrs (float): Minimum reserve endurance to retain (hours).
+        aoi_width (float, optional): Width of AOI (km, default 100 km).
+        aoi_length (float, optional): Length of AOI (km, default 100 km).
+
+    Returns:
+        float: Total area sanitized (km²) before hitting Bingo fuel and returning to base.
+    """
     if debug : print(f"Starting endurance: {endurance}" )
-    
-    patrol_area = aoi_width*aoi_length
-    ingress_time = hours_to_fly_xkm(speed_mps, ingress_dist_km)
-    endurance -= ingress_time
-    if debug : print(f"After ingress: {endurance}")
-    endurance -= fuel_reserve_hrs
-    if debug : print(f"After fuel reserve: {endurance}")
-    
-    x_patrol_time = hours_to_fly_xkm(speed_mps, aoi_width)
-    if debug : print(f"Time for 1 strip (aoi_width): {x_patrol_time}" )
+    aircraft_x       = 0 # 0 representes W side of the grid, 1 the E side
     area_sanitized = 0
-    swath_width = math.sqrt(footprint) # FOV_Width
+    patrol_area    = aoi_width*aoi_length
+    x_patrol_time  = hours_to_fly_xkm(speed_mps, aoi_width) # time to sanitize from position (0, n) to (aoi_width, n)
+    endurance     -= fuel_reserve_hrs # Subtract reserve fuel from `endurance`
     
-    distance_from_base_y = ingress_dist_km + (swath_width/2) # Start in center of swath
+    endurance -= hours_to_fly_xkm(speed_mps, ingress_dist_km) # Subtract time to ingress from `endurance`
+    sensor_fov_width = math.sqrt(footprint) # FOV_Width
+    aircaft_y = ingress_dist_km + (sensor_fov_width/2) # Start in center of fov
     
     while area_sanitized < patrol_area:
-        rtb_time = hours_to_fly_xkm(speed_mps, distance_from_base_y)
-        # if debug : print(f"{distance_from_base_y} km from base ({rtb_time}) hrs" )
+        rtb_time = hours_to_fly_xkm(speed_mps, aircaft_y)
+        # if debug : print(f"{aircaft_y} km from base ({rtb_time}) hrs" )
         
         #TODO: Account for moving east/west, and changing distance from base
         if endurance <  x_patrol_time+rtb_time: # If we have enough TOS to complete this strip
-            print("\nBingo fuel, RTB")
-            if debug: print(f"Endurance remaining: {endurance}. Distance from base {distance_from_base_y}km.  Time for 1 more patrol and RTB:{hours_to_fly_xkm(speed_mps,aoi_width+distance_from_base_y)} ")
+            print(f"Bingo fuel.  {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
+            if debug: print(f"Endurance remaining: {endurance}. Distance from base {aircaft_y}km.  Time for 1 more patrol and RTB:{hours_to_fly_xkm(speed_mps,aoi_width+aircaft_y)} ")
             return area_sanitized
         
         
         endurance                -= x_patrol_time            # deduct "fuel"
-        area_sanitized           += swath_width*aoi_width    # record area sanitized
-        distance_from_base_y     += swath_width              # move aircraft away from base
+        area_sanitized           += sensor_fov_width*aoi_width    # record area sanitized
+        aircaft_y     += sensor_fov_width              # move aircraft away from base
         progress_percent          = (area_sanitized / patrol_area) * 100
-        print(f"\rPatrol progress: {progress_percent:.1f}% complete", end="", flush=True)
+        # print(f"\rPatrol progress: {progress_percent:.1f}% complete", end="", flush=True)
+    assert(hours_to_fly_xkm(speed_mps, aircaft_y) <= endurance)
+    print(f"Mission complete. {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
     return patrol_area
             
             
