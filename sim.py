@@ -1,6 +1,8 @@
 from models import *
 from simulation.doe import create_doe
+
 import math
+import sys
 
 import numpy as np
 debug = False
@@ -131,7 +133,7 @@ def calc_area_sanitized(
           ↑
           |
           |       * Aircraft position (aircraft_x, aircraft_y)
-          |       * After first strip, aircraft_y ≈ 0
+          |       * For first strip, aircraft_y = math.sqrt(footprint)/2
           |
           * AOI origin (0,0) - southern edge of AOI
           |
@@ -162,11 +164,11 @@ def calc_area_sanitized(
     
     endurance -= hours_to_fly_xkm(speed_mps, ingress_dist_km) # Subtract time to ingress from `endurance`
     sensor_fov_width = math.sqrt(footprint) # FOV_Width
-    aircraft_y = ingress_dist_km + (sensor_fov_width/2) # Start in center of fov
+    aircraft_y = sensor_fov_width/2 # Start in center of fov
     
     while area_sanitized < patrol_area:
         km_from_base = distance_from_base(aircraft_x, aircraft_y, ingress_dist_km)
-        print(f"{aircraft_x}, {aircraft_y}, {ingress_dist_km} {km_from_base}")
+        if debug: print(f"X:{aircraft_x}, Y:{aircraft_y},  Distance to base:{km_from_base}")
         rtb_time = hours_to_fly_xkm(speed_mps, km_from_base)
         # if debug : print(f"{aircraft_y} km from base ({rtb_time}) hrs" )
         
@@ -177,13 +179,11 @@ def calc_area_sanitized(
             return area_sanitized
         
         
-        endurance                -= x_patrol_time            # deduct "fuel"
+        endurance                -= x_patrol_time                 # deduct "fuel"
         area_sanitized           += sensor_fov_width*aoi_width    # record area sanitized
-        aircraft_y               += sensor_fov_width 
+        aircraft_y               += sensor_fov_width              # move aircraft away from base
         aircraft_x = x_edges[1] if aircraft_x == x_edges[0] else x_edges[0] # Track W (0) or East (100)
-        # move aircraft away from base
-        progress_percent          = (area_sanitized / patrol_area) * 100
-        # print(f"\rPatrol progress: {progress_percent:.1f}% complete", end="", flush=True)
+
     assert(hours_to_fly_xkm(speed_mps, aircraft_y) <= endurance)
     print(f"Mission complete. {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
     return patrol_area
