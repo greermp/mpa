@@ -21,4 +21,4 @@ def cost_model(mach, alt_kft, sensor):
     # except KeyError:
     #     raise ValueError(f"Unknown sensor: {sensor}")
     
-    return 50 * mach**2 - 35 * mach + 0.03 * alt_kft**2 - 0.02 * alt_kft**2 + 11 + sensor.cost
+    return 50 * mach**2 - 35 * mach + 0.03 * alt_kft**2 - 0.02 * alt_kft + 11 + sensor.cost

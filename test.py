@@ -44,10 +44,10 @@ def test_sensor_footprint(alt_ft, sensor_fixture, expected, request):
 # -----------------------------
 # Cost model tests
 # -----------------------------
-@pytest.mark.parametrize("mach,alt_kft,sensor_fixture,expected", [
-    (0.5, 10, "sensor15", 50*0.5**2 - 35*0.5 + 0.01*10**2 + 11 + 0.05),
-    (0.8, 25, "sensor30", 50*0.8**2 - 35*0.8 + 0.01*25**2 + 11 + 1),
-    (1.0, 50, "sensor60", 50*1.0**2 - 35*1.0 + 0.01*50**2 + 11 + 10),
+@pytest.mark.parametrize("mach, alt_kft, sensor_fixture, expected", [
+    (0.5, 10, "sensor30", 50*0.5**2 - 35*0.5 + 0.03*10**2 - 0.02*10 + 11 + 1),
+    (0.4, 5,  "sensor15", 50*0.4**2 - 35*0.4 + 0.03*5**2  - 0.02*5  + 11 + 0.05),
+    (0.8, 25, "sensor60", 50*0.8**2 - 35*0.8 + 0.03*25**2 - 0.02*25 + 11 + 10.0)
 ])
 def test_cost_model(mach, alt_kft, sensor_fixture, expected, request):
     sensor = request.getfixturevalue(sensor_fixture)
@@ -57,10 +57,10 @@ def test_cost_model(mach, alt_kft, sensor_fixture, expected, request):
 # -----------------------------
 # Endurance model tests
 # -----------------------------
-@pytest.mark.parametrize("mach,alt_kft,expected", [
+@pytest.mark.parametrize("mach, alt_kft, expected", [
+    (0.4, 5,  -18.75*0.4**2 + 8.0893*0.4 + 0.01*5**2  + 0.05*5  + 9.2105),
     (0.5, 10, -18.75*0.5**2 + 8.0893*0.5 + 0.01*10**2 + 0.05*10 + 9.2105),
-    (0.8, 25, -18.75*0.8**2 + 8.0893*0.8 + 0.01*25**2 + 0.05*25 + 9.2105),
-    (1.0, 50, -18.75*1.0**2 + 8.0893*1.0 + 0.01*50**2 + 0.05*50 + 9.2105),
+    (0.8, 25, -18.75*0.8**2 + 8.0893*0.8 + 0.01*25**2 + 0.05*25 + 9.2105)
 ])
 def test_endurance_model(mach, alt_kft, expected):
     result = endurance_model(mach, alt_kft)
