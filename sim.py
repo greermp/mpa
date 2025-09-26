@@ -104,7 +104,6 @@ AOI origin  |           |
     dy = aircraft_y - base_y
     return math.hypot(dx, dy)
     
-    
 def calc_area_sanitized(
     speed_mps,
     endurance,
@@ -155,6 +154,7 @@ def calc_area_sanitized(
         float: Total area sanitized (km²) before hitting Bingo fuel and returning to base.
     """
     if debug : print(f"Starting endurance: {endurance}" )
+    turn_time_per_strip = 0.1  # hours (e.g., 6 minutes per turn) #TODO Actual turn radius/time
     aircraft_x     = 0 # 0 representes W side of the grid, 1 the E side
     x_edges        = [0, aoi_width]  # west and east edges
     area_sanitized = 0
@@ -177,10 +177,9 @@ def calc_area_sanitized(
             print(f"Bingo fuel.  {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
             if debug: print(f"Endurance remaining: {endurance}. Distance from base {aircraft_y}km.  Time for 1 more patrol and RTB:{hours_to_fly_xkm(speed_mps,aoi_width+aircraft_y)} ")
             return area_sanitized
-        
-        
-        endurance                -= x_patrol_time                 # deduct "fuel"
-        area_sanitized           += sensor_fov_width*aoi_width    # record area sanitized
+
+        endurance                -= x_patrol_time + turn_time_per_strip                 # deduct "fuel"
+        area_sanitized           += sensor_fov_width * aoi_width    # record area sanitized
         aircraft_y               += sensor_fov_width              # move aircraft away from base
         aircraft_x = x_edges[1] if aircraft_x == x_edges[0] else x_edges[0] # Track W (0) or East (100)
 
@@ -188,16 +187,16 @@ def calc_area_sanitized(
     print(f"Mission complete. {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
     return patrol_area
             
-            
 def main():
+    ### Assumptions
     ingress_dist_km  = 100
-    fuel_reserve_hrs =   0.5
+    fuel_reserve_hrs =   1
+    
     ### Factors
     # Speed (Mach) from 0.4 to 0.9, e.g., 6 levels
     machs = np.linspace(0.4, 0.9, 6)
     # Altitude from 5k to 25k feet
     altitudes_ft = np.linspace(5000, 25000, 5)
-
     doe = create_doe(machs, altitudes_ft)
     
     # compute velocity, cost, endurance, sensor footprint
@@ -215,17 +214,12 @@ def main():
         lambda row: get_sensor_footprint(row.alt_ft, row.sensor), axis=1)
 
     for idx, row in doe.iterrows():
-        sanitized = calc_area_sanitized(row["speed_mps"],
-                                        row["endurance_hr"],
-                                        row["footprint_km2"],
-                                        ingress_dist_km, fuel_reserve_hrs)
-        doe.loc[idx, "area_sanitized_km2"] = sanitized
+        doe.loc[idx, "area_sanitized_km2"] = calc_area_sanitized(row["speed_mps"],
+                                                                 row["endurance_hr"],
+                                                                 row["footprint_km2"],
+                                                                 ingress_dist_km, fuel_reserve_hrs)
     
-    doe.to_csv("mpa.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
-
-
-
-
+    doe.to_csv("output/mpa.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
 
 if __name__ == "__main__":
     main()
