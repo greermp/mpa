@@ -150,11 +150,11 @@ def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle, alt_f
     radius_meters = calc_turn_radius(speed_mps, bank_angle)
     sensor_footprint_width_meters = sensor_footprint_width_km * 1000
     
-    # Can we slow down??
-    if (2 * radius_meters > sensor_footprint_width_meters):
-        speed_mps = mach_to_mps(0.5, alt_ft)
-        radius_meters = calc_turn_radius(speed_mps, bank_angle)
-        sensor_footprint_width_meters = sensor_footprint_width_km * 1000
+    # # Can we slow down??
+    # if (2 * radius_meters > sensor_footprint_width_meters):
+    #     speed_mps = mach_to_mps(0.5, alt_ft)
+    #     radius_meters = calc_turn_radius(speed_mps, bank_angle)
+    #     sensor_footprint_width_meters = sensor_footprint_width_km * 1000
     
     
     
@@ -198,9 +198,9 @@ def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle, alt_f
         print(f"Simple half-circle turn: distance = {maneuver_distance:.2f} m")
 
     # Time = distance / speed
-    time_to_turn = maneuver_distance / speed_mps
-    print(f"Time to turn: {time_to_turn:.2f} s")
-    return time_to_turn
+    time_to_turn_hrs = maneuver_distance / speed_mps / 3600
+    print(f"Time to turn: {time_to_turn_hrs*3600:.2f} s")
+    return time_to_turn_hrs
 
 def calc_turn_radius(speed_mps, bank_angle_deg):
     """
@@ -219,7 +219,7 @@ def calc_area_sanitized(
     footprint,
     ingress_dist_km,
     # Assumptions
-    bank_angle=45,
+    bank_angle=60,
     fuel_reserve_hrs=0,
     aoi_width=100,
     aoi_length=100) -> float:
@@ -283,7 +283,7 @@ def calc_area_sanitized(
     endurance     -= hours_to_fly_xkm(speed_mps, ingress_dist_km) # Subtract time to ingress from `endurance`
     
     # Calculate time to turn. Function of turn radius and sensor footprint
-    time_to_turn = calc_orbit_turn_time(speed_mps, sensor_footprint_width, bank_angle, alt_ft, speed_mach)
+    time_to_turn_hrs = calc_orbit_turn_time(speed_mps, sensor_footprint_width, bank_angle, alt_ft, speed_mach)
 
     while area_sanitized < patrol_area:
         km_from_base = distance_from_base(aircraft_x, aircraft_y, ingress_dist_km)
@@ -297,7 +297,7 @@ def calc_area_sanitized(
             if debug: print(f"Endurance remaining: {endurance}. Distance from base {aircraft_y}km.  Time for 1 more patrol and RTB:{hours_to_fly_xkm(speed_mps,aoi_width+aircraft_y)} ")
             return area_sanitized
 
-        endurance                -= x_patrol_time + time_to_turn                 # deduct "fuel"
+        endurance                -= x_patrol_time + time_to_turn_hrs                 # deduct "fuel"
         area_sanitized           += sensor_footprint_width * aoi_width    # record area sanitized
         aircraft_y               += sensor_footprint_width              # move aircraft away from base
         aircraft_x = x_edges[1] if aircraft_x == x_edges[0] else x_edges[0] # Track W (0) or East (100)
@@ -310,6 +310,7 @@ def main():
     ### Assumptions
     ingress_dist_km  = 100
     fuel_reserve_hrs =   1
+    bank_angle       =  60
     
     ### Factors
     # Speed (Mach) from 0.4 to 0.9, e.g., 6 levels
@@ -341,7 +342,9 @@ def main():
                                                                  row["sensor_name"],
                                                                  row["footprint_km2"],
                                                                  ingress_dist_km=ingress_dist_km, 
-                                                                 fuel_reserve_hrs=fuel_reserve_hrs)
+                                                                 bank_angle = bank_angle,
+                                                                 fuel_reserve_hrs=fuel_reserve_hrs
+                                                                 )
         # break
     
     doe.to_csv("output/mpa.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
