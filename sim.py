@@ -48,9 +48,11 @@ def mach_to_mps(mach, alt_ft):
     float
         Speed in m/s.
     """
+    T0 = 288.15  # sea level temperature in K
+    lapse_rate = 0.0065
     alt_m    = alt_ft * 0.3048
-    t_kelvin = 288.15 - 0.0065 * alt_m
-    a        = 340.3 * math.sqrt(t_kelvin/288.15) # a: Speed of Sound (m/s)
+    t_kelvin = T0 - lapse_rate * alt_m
+    a        = 340.3 * math.sqrt(t_kelvin/T0) # a: Speed of Sound (m/s)
     v_ms     = mach * a
     return v_ms
     
@@ -264,6 +266,8 @@ def calc_area_sanitized(
     Returns:
         float: Total area sanitized (km²) before hitting Bingo fuel and returning to base.
     """
+    if bank_angle_deg >= 90:
+        raise ValueError("Bank angle must be less than 90°")
     
     # Mission
     patrol_area    = aoi_width*aoi_length
