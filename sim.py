@@ -106,30 +106,28 @@ AOI origin  |           |
     dy = aircraft_y - base_y
     return math.hypot(dx, dy)
 
-def calculate_turn_fuel_penalty(bank_angle_deg, model="n15"):
+def turn_fuel_multiplier(bank_angle_deg, k_induced_drag=0.2):
     """
-    Calculate remaining endurance after a banked turn.
-    
-    Args:
-        bank_angle_deg (float): Bank angle in degrees (0-90)
-        model (str): "linear" or "n15" (for n^1.5)
-    
+    Calculate the fuel burn multiplier for a level banked turn.
+
+    Parameters:
+        bank_angle_deg (float): Bank angle in degrees.
+        k_induced_drag (float): Fraction of total drag that is induced drag at cruise (default 0.2).
+
     Returns:
-        float: a multipler to apply to fuel burned (or endurance consumed)
+        float: Fuel burn multiplier relative to straight & level flight.
     """
-    # Calculate load factor
-    n = 1 / math.cos(math.radians(bank_angle_deg))
-    
-    # Calculate fuel multiplier based on model
-    if model == "linear":
-        fuel_multiplier = n
-    elif model == "n15":
-        fuel_multiplier = n ** 1.5
-    else:
-        raise ValueError("Model must be 'linear' or 'n15'")
-    
-    # Return remaining endurance
-    return fuel_multiplier
+    # Convert bank angle to radians
+    phi_rad = math.radians(bank_angle_deg)
+
+    # Load factor n
+    n = 1 / math.cos(phi_rad)
+
+    # Fuel burn multiplier
+    multiplier = 1 + k_induced_drag * (n**2 - 1)
+
+    return multiplier
+
 
 def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle_deg, alt_ft, speed_mach):
     """
@@ -222,7 +220,8 @@ def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle_deg, a
 
     # Time = distance / speed
     time_to_turn_hrs = hours_to_fly_xkm(speed_mps, maneuver_distance/1000)
-    time_to_turn_hrs_wmult = time_to_turn_hrs * calculate_turn_fuel_penalty(bank_angle_deg, 'n15')
+    time_to_turn_hrs_wmult = time_to_turn_hrs * turn_fuel_multiplier(bank_angle_deg)
+    
     # print(f"Time to turn: {maneuver_distance/1000:.2f} km  {time_to_turn_hrs:.2f} h. With multiplier {calculate_turn_fuel_penalty(bank_angle_deg, 'n15')}: {time_to_turn_hrs_wmult}hrs")
     # print(f"Time to patrol 100km: {hours_to_fly_xkm(speed_mps, 100)} h")
     return time_to_turn_hrs_wmult
@@ -343,7 +342,7 @@ def main():
     ### Assumptions
     ingress_dist_km  = 100
     fuel_reserve_hrs =   1
-    bank_angle_deg   =  30
+    bank_angle_deg   =  45
     
     ### Factors
     # Speed (Mach) from 0.4 to 0.9, e.g., 6 levels
