@@ -132,6 +132,8 @@ def turn_fuel_multiplier(bank_angle_deg, k_induced_drag=0.2):
 def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle_deg, alt_ft, speed_mach):
     """
     Compute the time to fly a turn maneuver given aircraft speed, sensor footprint width, and bank angle.
+    Since we are utilzing endurance as a surrogate for fuel, also return time*scalar to account for more
+    drag and thrust required (Fuel flow)
 
     Scenario:
     - If the aircraft’s turn radius is large compared to the sensor footprint width,
@@ -168,6 +170,8 @@ def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle_deg, a
 
     Returns
     -------
+    time_to_turn_hrs_wmult : float
+        Time in seconds to fly from x to y
     time_to_turn : float
         Time in seconds to fly from x to y
     """
@@ -224,7 +228,7 @@ def calc_orbit_turn_time(speed_mps, sensor_footprint_width_km, bank_angle_deg, a
     
     # print(f"Time to turn: {maneuver_distance/1000:.2f} km  {time_to_turn_hrs:.2f} h. With multiplier {calculate_turn_fuel_penalty(bank_angle_deg, 'n15')}: {time_to_turn_hrs_wmult}hrs")
     # print(f"Time to patrol 100km: {hours_to_fly_xkm(speed_mps, 100)} h")
-    return time_to_turn_hrs_wmult
+    return time_to_turn_hrs_wmult, time_to_turn_hrs
 
 def calc_turn_radius(speed_mps, bank_angle_deg):
     """
@@ -287,11 +291,13 @@ def calc_area_sanitized(
 
     Returns:
         float: Total area sanitized (km²) before hitting Bingo fuel and returning to base.
+        float: Time to complete patrol
     """
     if bank_angle_deg >= 90:
         raise ValueError("Bank angle must be less than 90°")
     
     # Mission
+    stop_watch = 0
     patrol_area    = aoi_width*aoi_length
     sensor_footprint_width = math.sqrt(footprint) # FOV_Width
 
@@ -307,9 +313,11 @@ def calc_area_sanitized(
     # Fuel accouting
     endurance     -= fuel_reserve_hrs # Subtract reserve fuel from `endurance`
     endurance     -= hours_to_fly_xkm(speed_mps, ingress_dist_km) # Subtract time to ingress from `endurance`
+    stop_watch    += hours_to_fly_xkm(speed_mps, ingress_dist_km)
     
     # Calculate time to turn. Function of turn radius and sensor footprint
-    time_to_turn_hrs = calc_orbit_turn_time(speed_mps, sensor_footprint_width, bank_angle_deg, alt_ft, speed_mach)
+    # For fuel  ........... for time
+    time_to_turn_hrs_wmult, time_to_turn_hrs = calc_orbit_turn_time(speed_mps, sensor_footprint_width, bank_angle_deg, alt_ft, speed_mach)
 
     print (f"Starting Endurance : {endurance}")
     while area_sanitized < patrol_area:
@@ -321,22 +329,23 @@ def calc_area_sanitized(
         if endurance <  x_patrol_time+rtb_time: # If we don't have enough TOS to complete this strip
             print(f"Bingo fuel.  {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
             if debug: print(f"Endurance remaining: {endurance}. Distance from base {aircraft_y}km.  Time for 1 more patrol and RTB:{hours_to_fly_xkm(speed_mps,aoi_width+aircraft_y)} ")
-            return area_sanitized
+            return area_sanitized, (stop_watch+rtb_time)
 
         
         
         print (f"Deduct patrol time : {x_patrol_time}")
         endurance                -= x_patrol_time 
-        print (f"Deduct turn time : {time_to_turn_hrs}")
-        endurance                -= time_to_turn_hrs                 # deduct "fuel"
+        print (f"Deduct turn time : {time_to_turn_hrs_wmult}")
+        endurance                -= time_to_turn_hrs_wmult                 # deduct "fuel"
         print (f"Endurance : {endurance}")
         area_sanitized           += sensor_footprint_width * aoi_width    # record area sanitized
+        stop_watch               += time_to_turn_hrs + x_patrol_time
         aircraft_y               += sensor_footprint_width              # move aircraft away from base
         aircraft_x = x_edges[1] if aircraft_x == x_edges[0] else x_edges[0] # Track W (0) or East (100)
         print(f"Aircraft at ({aircraft_x},{aircraft_y}).  Sanitized: {area_sanitized}")
     assert(hours_to_fly_xkm(speed_mps, aircraft_y) <= endurance)
     print(f"Mission complete. {percent_patrol_complete(patrol_area, area_sanitized):.2f}, % sanitized")
-    return patrol_area
+    return patrol_area, (stop_watch+rtb_time)
             
 def main():
     ### Assumptions
@@ -366,7 +375,7 @@ def main():
         lambda row: get_sensor_footprint_km2(row.alt_ft, row.sensor), axis=1)
 
     for idx, row in doe.iterrows():
-        doe.loc[idx, "area_sanitized_km2"] = calc_area_sanitized(row["alt_ft"],
+        area_sanitized_km2, time_hrs = calc_area_sanitized(row["alt_ft"],
                                                                  row["speed_mach"],
                                                                  row["speed_mps"],
                                                                  row["endurance_hr"],
@@ -374,11 +383,15 @@ def main():
                                                                  row["footprint_km2"],
                                                                  ingress_dist_km=ingress_dist_km, 
                                                                  bank_angle_deg = bank_angle_deg,
-                                                                 fuel_reserve_hrs=fuel_reserve_hrs
+                                                                 fuel_reserve_hrs=fuel_reserve_hrs,
+                                                                 aoi_width=100,
+                                                                 aoi_length=375
                                                                  )
+        doe.loc[idx, "area_sanitized_km2"] = area_sanitized_km2
+        doe.loc[idx, "mission_time_hrs"] = time_hrs
         # break
     
-    doe.to_csv("output/mpa.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
+    doe.to_csv("output/mpa_big.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
 
 if __name__ == "__main__":
     main()
