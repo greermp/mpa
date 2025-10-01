@@ -162,7 +162,7 @@ grid$Footprint <- 2 * grid$Altitude * tan(grid$FOV / 2 * pi / 180) * ft_to_m
 grid <- grid %>%
   rowwise() %>%
   mutate(speed_of_sound = speed_of_sound_at_alt(Altitude),
-         TurnRadius = ((Mach * speed_of_sound)^2 / (g * tan(bank_angle * pi/180))) * ft_to_m) %>%
+         TurnDiameter = ((Mach * speed_of_sound)^2 / (g * tan(bank_angle * pi/180))) * ft_to_m * 2) %>%
   ungroup()
 
 grid$FOV = factor(grid$FOV, levels= c('60','30','15'))
@@ -176,11 +176,12 @@ ggplot(grid, aes(y = Altitude )) +
   geom_line(aes(x = Footprint, group = interaction(FOV, Mach)), size = 1.2) +
   
   # Turn radius dashed lines
-  geom_line(aes(x = TurnRadius, y = Altitude , color = as.factor(Mach), group = Mach),
+  geom_line(aes(x = TurnDiameter, y = Altitude , color = as.factor(Mach), group = Mach),
             linetype = "dashed", size = 1.3) +
   
-  scale_x_continuous(breaks = scales::pretty_breaks(), limits=c(0,10000),  labels=comma) +
+  # scale_x_continuous(breaks = scales::pretty_breaks(), limits=c(0,10000),  labels=comma) +
   scale_y_continuous(label=comma) +
+  scale_x_continuous(label=comma) +
   # Facets by FOV
   # facet_wrap(~FOV, #scales = "free_x",
   #            labeller = labeller(FOV = function(x) paste0("FOV = ", x, "°"))) +
@@ -194,15 +195,19 @@ ggplot(grid, aes(y = Altitude )) +
   labs(
     x = "Distance (m)",
     y = "Altitude (ft)",
-    title = "Sensor Footprint vs Turn Radius",
-    subtitle = "Dashed lines = constant mach turn radius"
+    title = "At Tactical Speeds, Turn Diameter > Sensor Footprint",
+    subtitle = "Dashed lines = turn circle diameter (constant mach and 30° AOB)"
   ) +
   theme(
     legend.position = "bottom",
     legend.box = "vertical") +
-  guides(color = guide_legend(nrow = 1))
+  guides(color = guide_legend(nrow = 1))+
+  theme(panel.ontop = TRUE,
+        panel.grid.major = element_line(color = "darkgrey", size  = 0.25),
+        panel.grid.minor = element_blank(),
+        plot.margin = margin(10, 30, 10, 10))  
 
-ggsave("plots/turn_radiusv_sensor_width.png", height = 5.75, width = 6.5, dpi = 500)
+ggsave("plots/turn_radius_sensor_width.png", height = 6, width = 7, dpi = 500)
 
 
 
