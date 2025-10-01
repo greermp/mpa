@@ -7,7 +7,41 @@ import sys
 import numpy as np
 debug = False
 
-def get_sensor_footprint_km2(alt_ft, sensor):
+def get_effective_fov_deg(alt_ft, fov_deg, npx_axis, target_m=15, px_req=3):
+    """
+    Compute effective FOV (deg) based on pixel requirement at worst-case edge.
+
+    Parameters
+    ----------
+    alt_ft : float
+        Altitude in ft.
+    fov_deg : float
+        Lens field of view (deg).
+    npx_axis : int
+        Number of pixels along that axis.
+    target_m : float
+        Target size (m). Default = 15 (corvette beam).
+    px_req : int
+        Required pixels across target. Default = 3.
+
+    Returns
+    -------
+    float
+        Effective FOV in degrees (<= fov_deg).
+    """
+    H_m = alt_ft * 0.3048
+    IFOV = (math.pi/180) * fov_deg / npx_axis  # rad/px
+    ratio = (px_req * H_m * IFOV) / target_m
+
+    if ratio >= 1:
+        theta_max = 0
+    else:
+        theta_max = math.acos(math.sqrt(ratio))
+
+    FOV_eff_rad = min((math.pi/180) * fov_deg, 2 * theta_max)
+    return FOV_eff_rad * 180/math.pi
+
+def get_sensor_footprint_w_km(alt_ft, sensor, target_m=15, px_req=3):
     """
     Compute sensor footprint based on altitude and FOV.
 
@@ -21,11 +55,16 @@ def get_sensor_footprint_km2(alt_ft, sensor):
     Returns
     -------
     float
-        Footprint in km2.
+        Footprint width in km.
     """
-    footprint_length = alt_ft * 0.0003048 *2 * math.tan(sensor.fov_deg_w/2*math.pi/180)
-    footprint_width  = alt_ft * 0.0003048 *2 * math.tan(sensor.fov_deg_l/2*math.pi/180)
-    return footprint_length * footprint_width 
+    H_m = alt_ft * 0.3048
+
+    # Width uses effective FOV
+    FOV_eff_w_deg = get_effective_fov_deg(alt_ft, sensor.fov_deg_w,
+                                          sensor.npx_w, target_m, px_req)
+    footprint_width = 2 * H_m * math.tan((FOV_eff_w_deg/2) * math.pi/180)
+
+    return footprint_width / 1e3  # m -> km
 
 def mach_to_mps(mach, alt_ft):
     """
@@ -243,7 +282,6 @@ def calc_area_sanitized(
     speed_mach,
     speed_mps,
     endurance,
-    sensor_name,
     footprint,
     ingress_dist_km,
     # Assumptions
@@ -263,7 +301,7 @@ def calc_area_sanitized(
         Width  = aoi_width  (km, east-west)
         Length = aoi_length (km, north-south)
 
-    Sensor footprint is assumed square; swath width = sqrt(footprint).
+    Sensor footprint is assumed square
 
     Coordinates schematic (for ingress_dist_km = 100 km, aoi_width = 100 km):
 
@@ -271,7 +309,7 @@ def calc_area_sanitized(
           ↑
           |
           |       * Aircraft position (aircraft_x, aircraft_y)
-          |       * For first strip, aircraft_y = math.sqrt(footprint)/2
+          |       * For first strip, aircraft_y = footprint
           |
           * AOI origin (0,0) - southern edge of AOI
           |
@@ -283,7 +321,7 @@ def calc_area_sanitized(
     Args:
         speed_mps (float): True airspeed of the aircraft in meters/second.
         endurance (float): Total available flight time (hours) including reserves.
-        footprint (float): Sensor footprint area in km².
+        footprint (float): Sensor footprint width in km.
         ingress_dist_km (float): Distance from base to AOI southern edge (km).
         fuel_reserve_hrs (float): Minimum reserve endurance to retain (hours).
         aoi_width (float, optional): Width of AOI (km, default 100 km).
@@ -299,7 +337,7 @@ def calc_area_sanitized(
     # Mission
     stop_watch = 0
     patrol_area    = aoi_width*aoi_length
-    sensor_footprint_width = math.sqrt(footprint) # FOV_Width
+    sensor_footprint_width = footprint # FOV_Width
 
     # Geometry    
     aircraft_y     = sensor_footprint_width/2 # Start laterally displaced half sensor fov (optimal)
@@ -371,27 +409,26 @@ def main():
     doe['endurance_hr'] = doe.apply(
         lambda row: endurance_model(row.speed_mach, row.alt_ft/1000), axis=1)
     
-    doe['footprint_km2'] = doe.apply(
-        lambda row: get_sensor_footprint_km2(row.alt_ft, row.sensor), axis=1)
+    doe['footprint_w_km'] = doe.apply(
+        lambda row: get_sensor_footprint_w_km(row.alt_ft, row.sensor), axis=1)
 
     for idx, row in doe.iterrows():
         area_sanitized_km2, time_hrs = calc_area_sanitized(row["alt_ft"],
                                                                  row["speed_mach"],
                                                                  row["speed_mps"],
                                                                  row["endurance_hr"],
-                                                                 row["sensor_name"],
-                                                                 row["footprint_km2"],
+                                                                 row["footprint_w_km"],
                                                                  ingress_dist_km=ingress_dist_km, 
                                                                  bank_angle_deg = bank_angle_deg,
                                                                  fuel_reserve_hrs=fuel_reserve_hrs,
                                                                  aoi_width=100,
-                                                                 aoi_length=375
+                                                                 aoi_length=100
                                                                  )
         doe.loc[idx, "area_sanitized_km2"] = area_sanitized_km2
         doe.loc[idx, "mission_time_hrs"] = time_hrs
         # break
     
-    doe.to_csv("output/mpa_big.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
+    doe.to_csv("output/mpa.csv", columns= [col for col in doe.columns if col != "sensor"] ,index=False)
 
 if __name__ == "__main__":
     main()
