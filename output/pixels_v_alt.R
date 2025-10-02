@@ -85,7 +85,7 @@ p <- ggplot(grid_long %>% filter(px_across<=20), aes(x = px_across, y = alt_ft,
   # scale_x_continuous(limits=c(0,20)) +
   labs(
     title = "Pixels Across vs Altitude",
-    subtitle = sprintf("L ≈ %g m, boresight vs Edge GSD", target_m),
+    subtitle = sprintf("px for det = %g, L ≈ %g m, boresight vs edge GSD", px_required, target_m),
     x = "Pixels across target (px)",
     y = "Altitude (ft)",
     linetype = "𝛼"

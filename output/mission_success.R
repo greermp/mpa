@@ -34,7 +34,7 @@ df_big <- read_csv("mpa_big.csv") %>%
              speed_mach <= 0.65  ~"slow",
              speed_mach >0.65    ~ "fast"))
   
-
+slow <- df %>% filter(speed_cat == "slow")
 
 # Cost per mission complete
 ggplot(df, aes(x = per_mission_complete, y =  cost, color = factor(alt_ft))) +
@@ -183,7 +183,7 @@ ggplot(many_filt, aes(x = mission_time_mult, y =  cost_n, color = factor(alt_ft)
   
   labs(x="Mission Completion Time (with n sorties)",
        y="Procurement Cost * Sorties Required",
-       title="Similar mission completion time",
+       title="Mass Tradeoffs",
        linetype = "",
        shape="Altitude (ft))", 
        color="Altitude (ft)") +
@@ -216,9 +216,6 @@ ggplot(slow, aes(x = per_mission_complete, y =  cost, color = factor(alt_ft))) +
   theme(panel.border = element_rect(color = "grey70", fill = NA, linewidth = 0.5))
 
 ggsave("plots/mission_complete.png", height = 3.65, width = 12.5, dpi = 500)
-
-
-100*500/100*100
 
 
 success_big <- df_big %>% 
@@ -305,6 +302,7 @@ ggplot(success_small, aes(x = endurance_remaining, y = cost)) +
              stroke = 1.3, size = 5) +
   geom_line(data = pareto_points_endurance, color = "cyan", linewidth = 1.2) +
   geom_point(data = pareto_points_endurance, color = "black", size = 1.5) +
+  scale_y_continuous(limits = c(0,50), expand = expansion(mult = 0)) +
   scale_shape_manual(values = c(21, 24, 22)) +
   scale_fill_brewer(palette = "Dark2") +
   scale_color_manual(values = c('#CCC', '#FFCC00', 'black')) +

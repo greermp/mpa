@@ -56,6 +56,7 @@ df_endurance <- df[!duplicated(df[c("mach", "alt_ft")]), ]
 ggplot(df_endurance, aes(x = mach, y = alt_ft)) +
   geom_raster(aes(fill = endurance), interpolate = TRUE) +
   scale_fill_viridis_c(option = "turbo", direction = -1) +
+  scale_y_continuous(labels=comma) +
   geom_contour(aes(z = endurance), color = "white", breaks = seq(4,16,2)) +
   geom_text_contour(  aes(z = endurance),                # labels along the lines
                       breaks = seq(4, 16, by = 2),      # same breaks as contour
@@ -80,6 +81,7 @@ ggplot(df, aes(x = mach, y = alt_ft)) +
   scale_fill_viridis_c(option = "magma", direction = -1,
                        breaks = seq(0, 50, by = 10 )) +
   geom_contour(aes(z = cost), color = "white", breaks = seq(10,40,5)) +
+  scale_y_continuous(labels=comma) +
   geom_text_contour(  aes(z = cost),                # labels along the lines
     breaks = seq(10, 40, by = 5),      # same breaks as contour
     color='white',
@@ -121,6 +123,7 @@ ggplot(df, aes(y = alt_ft, x = sensor_width_m, color = factor(fov_deg))) +
     # title = "Sensor Footprint vs Altitude for Different FOVs",
     # subtitle = "Assumes square sensor FOV"
   ) +
+  scale_y_continuous(labels=comma) +
   scale_x_continuous(limits = c(0,9000), labels = comma, breaks=scales::pretty_breaks()) +
   scale_color_brewer(palette = 'Dark2') 
 ggsave("plots/sensor_width.png", height = 5, width = 7, dpi = 500)
@@ -173,7 +176,7 @@ ggplot(grid, aes(y = Altitude )) +
   geom_ribbon(aes(xmin = 0, xmax = Footprint, fill=FOV, group = interaction(FOV, Mach))) +
   
   # Footprint lines
-  geom_line(aes(x = Footprint, group = interaction(FOV, Mach)), size = 1.2) +
+  geom_line(aes(x = Footprint, group = interaction(FOV, Mach)), size = 0.8) +
   
   # Turn radius dashed lines
   geom_line(aes(x = TurnDiameter, y = Altitude , color = as.factor(Mach), group = Mach),
@@ -187,7 +190,7 @@ ggplot(grid, aes(y = Altitude )) +
   #            labeller = labeller(FOV = function(x) paste0("FOV = ", x, "°"))) +
   # 
   # Colors
-  scale_fill_brewer(palette = 'Pastel1', name = "Sensor FOV", direction = -1) +
+  scale_fill_brewer(palette = 'Pastel1', name = "Swath Width", direction = -1) +
   # scale_fill_manual(values = fov_cols, name = "Sensor FOV") +
   scale_color_brewer(palette = 'Dark2', name = "Mach Number") +
   
@@ -196,7 +199,7 @@ ggplot(grid, aes(y = Altitude )) +
     x = "Distance (m)",
     y = "Altitude (ft)",
     title = "At Tactical Speeds, Turn Diameter > Sensor Footprint",
-    subtitle = "Dashed lines = turn circle diameter (constant mach and 30° AOB)"
+    subtitle = "Dashed lines = turn circle diameter (level turn, constant mach, 45° AOB)"
   ) +
   theme(
     legend.position = "bottom",
@@ -204,6 +207,7 @@ ggplot(grid, aes(y = Altitude )) +
   guides(color = guide_legend(nrow = 1))+
   theme(panel.ontop = TRUE,
         panel.grid.major = element_line(color = "darkgrey", size  = 0.25),
+        # panel.grid.minor = element_line(color = "darkgrey", size  = 0.02),
         panel.grid.minor = element_blank(),
         plot.margin = margin(10, 30, 10, 10))  
 
