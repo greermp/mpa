@@ -37,28 +37,13 @@ def get_effective_fov_deg(
     fov_deg: float,
     npx_axis: int,
     target_m: float = 15.0,
-    px_req: int = 3,
+    px_req: int = 4,
 ) -> float:
     """
     Compute effective FOV (deg) so that the pixel requirement holds at the worst-case edge.
 
-    Parameters
-    ----------
-    alt_ft : float
-        Altitude (ft).
-    fov_deg : float
-        Optical field of view along the axis (deg).
-    npx_axis : int
-        Pixel count along width.
-    target_m : float
-        Target dimension along that axis (m). Default 15 (approx. corvette beam).
-    px_req : int
-        Required pixels across target at the edge. Default 3.
-
-    Returns
-    -------
-    float
-        Effective FOV in degrees (<= fov_deg).
+    If the lens FOV already satisfies the pixel requirement, return the lens FOV.
+    Otherwise, reduce the FOV until edge GSD = required GSD.
     """
     if alt_ft < 0:
         raise ValueError("Altitude must be non-negative.")
@@ -70,46 +55,27 @@ def get_effective_fov_deg(
         raise ValueError("px_req must be positive.")
 
     h_m = alt_ft * METERS_PER_FOOT
-    fov_rad = math.radians(fov_deg)
-    ifov_rad_per_px = fov_rad / npx_axis
+    gsd_req = target_m / px_req  # [m/px] maximum allowed
 
-    # ratio = (px_req * h * IFOV) / target_size  (dimensionless)
-    ratio = (px_req * h_m * ifov_rad_per_px) / target_m
-    ratio = max(0.0, ratio)  # guard tiny negative from float noise
+    # Maximum allowed swath width that still meets pixel requirement
+    w_max_m = gsd_req * npx_axis
 
-    if ratio >= 1.0:
-        theta_max = 0.0
-    else:
-        theta_max = math.acos(math.sqrt(ratio))
+    # Corresponding FOV cap
+    fov_cap_rad = 2.0 * math.atan(w_max_m / (2.0 * h_m))
+    fov_cap_deg = math.degrees(fov_cap_rad)
 
-    fov_eff_rad = min(fov_rad, 2.0 * theta_max)
-    return math.degrees(fov_eff_rad)
+    # Effective FOV is the more restrictive of lens FOV and resolution FOV
+    return min(fov_deg, fov_cap_deg)
 
 
 def get_sensor_footprint_w_km(
     alt_ft: float,
     sensor,
     target_m: float = 15.0,
-    px_req: int = 3,
+    px_req: int = 4,
 ) -> float:
     """
     Compute sensor footprint WIDTH (km) using the *effective* FOV to enforce pixel criteria.
-
-    Parameters
-    ----------
-    alt_ft : float
-        Altitude (ft).
-    sensor : object
-        Must provide attributes: fov_deg_w (deg), npx_w (px).
-    target_m : float
-        Target dimension along width axis (m).
-    px_req : int
-        Required pixels across target at the edge.
-
-    Returns
-    -------
-    float
-        Footprint width in km.
     """
     h_m = alt_ft * METERS_PER_FOOT
 
@@ -120,13 +86,10 @@ def get_sensor_footprint_w_km(
         target_m=target_m,
         px_req=px_req,
     )
-    width_m = 2.0 * h_m * math.tan(math.radians(fov_eff_w_deg / 2.0 * 2.0))
-    # NOTE: math.tan( (FOV_eff/2) * pi/180 ). The *2.0 cancelled because we already split by 2 above.
-    # To avoid confusion, write it explicitly:
+
+    # Geometric swath width with reduced FOV
     width_m = 2.0 * h_m * math.tan(math.radians(fov_eff_w_deg) / 2.0)
-
     return width_m * KM_PER_METER
-
 
 # -----------------------------------------------------------------------------
 # Flight / performance helpers
